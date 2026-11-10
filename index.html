@@ -92,6 +92,10 @@
     .chart-panel { padding: 21px 19px 17px; text-align: center; }
     .chart-panel h3 { margin: 0; font-size: 13px; }
     .chart-panel p { margin: 5px 0 0; color: var(--muted); font-size: 10px; }
+    .chart-legend { display: flex; justify-content: center; gap: 16px; margin-top: 12px; color: var(--muted); font-size: 10px; }
+    .chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .legend-swatch { width: 20px; border-top: 2px solid var(--green); }
+    .legend-average { border-top-color: var(--orange); border-top-style: dashed; }
     canvas { display: block; width: 100%; max-width: 290px; height: auto; margin: 12px auto 0; }
     .result-actions { display: flex; gap: 9px; margin-top: 20px; }
     .result-actions .btn { flex: 1; }
@@ -139,11 +143,11 @@
   </div>
   <script>
     const traits = [
-      { key: 'openness', name: '开放性', en: '好奇与想象', color: '#708ca1', low: '你更偏好熟悉、具体且经过验证的方式，重视稳定与实用。', high: '你容易被新想法吸引，乐于探索不同视角、体验与可能性。' },
-      { key: 'conscientiousness', name: '尽责性', en: '计划与执行', color: '#e27d52', low: '你更倾向于保持弹性，临场调整比严格遵循计划更自然。', high: '你通常有条理、重承诺，愿意为目标持续投入并留意细节。' },
-      { key: 'extraversion', name: '外向性', en: '活力与社交', color: '#e8b94f', low: '独处和小范围交流常能为你恢复能量，你更习惯先观察再参与。', high: '互动与热闹的环境容易带给你能量，你往往主动表达和参与。' },
-      { key: 'agreeableness', name: '宜人性', en: '合作与体谅', color: '#c97b83', low: '你重视直接与独立判断，必要时会坦率表达不同意见。', high: '你倾向于体察他人感受、寻求合作，并愿意给予信任与支持。' },
-      { key: 'neuroticism', name: '情绪敏感度', en: '感受与压力', color: '#7c8871', low: '面对压力时你通常较为平稳，不容易被短暂波动牵动。', high: '你对压力和情绪线索较敏锐，感受丰富，也可能更容易担忧。' }
+      { key: 'openness', name: '开放性', en: '好奇与想象', color: '#708ca1', average: 3.6, low: '你更偏好熟悉、具体且经过验证的方式，重视稳定与实用。', high: '你容易被新想法吸引，乐于探索不同视角、体验与可能性。' },
+      { key: 'conscientiousness', name: '尽责性', en: '计划与执行', color: '#e27d52', average: 3.65, low: '你更倾向于保持弹性，临场调整比严格遵循计划更自然。', high: '你通常有条理、重承诺，愿意为目标持续投入并留意细节。' },
+      { key: 'extraversion', name: '外向性', en: '活力与社交', color: '#e8b94f', average: 3.4, low: '独处和小范围交流常能为你恢复能量，你更习惯先观察再参与。', high: '互动与热闹的环境容易带给你能量，你往往主动表达和参与。' },
+      { key: 'agreeableness', name: '宜人性', en: '合作与体谅', color: '#c97b83', average: 3.8, low: '你重视直接与独立判断，必要时会坦率表达不同意见。', high: '你倾向于体察他人感受、寻求合作，并愿意给予信任与支持。' },
+      { key: 'neuroticism', name: '神经质', en: '感受与压力', color: '#7c8871', average: 3, low: '面对压力时你通常较为平稳，不容易被短暂波动牵动。', high: '你对压力和情绪线索较敏锐，感受丰富，也可能更容易担忧。' }
     ];
     const questions = [
       ['我会主动尝试新的活动或体验。', 'openness', false],
@@ -175,10 +179,12 @@
     const scaleLabels = ['很不符合', '不太符合', '一般', '比较符合', '很符合'];
     const answers = Array(questions.length).fill(null);
     let current = 0;
+    let advanceTimer;
     const app = document.querySelector('#app');
     const traitFor = key => traits.find(trait => trait.key === key);
 
     function renderQuestion() {
+      clearTimeout(advanceTimer);
       const [, traitKey] = questions[current];
       const trait = traitFor(traitKey);
       const doneTraits = new Set(questions.slice(0, current).map(question => question[1]));
@@ -192,21 +198,22 @@
               <h2 id="question-title">${questions[current][0]}</h2>
               <div class="scale" role="group" aria-label="请选择符合程度">${scaleLabels.map((label, index) => `<button class="choice" type="button" aria-pressed="${answers[current] === index + 1}" data-answer="${index + 1}"><strong>${index + 1}</strong><span>${label}</span></button>`).join('')}</div>
             </div>
-            <div class="nav"><span class="nav-hint">按直觉作答即可</span><div class="nav-actions"><button class="btn" id="prev" type="button" ${current === 0 ? 'disabled' : ''}>上一步</button><button class="btn btn-primary" id="next" type="button" ${answers[current] === null ? 'disabled' : ''}>${current === questions.length - 1 ? '查看结果' : '下一题'}</button></div></div>
+            <div class="nav"><span class="nav-hint">选择后自动进入下一题</span><div class="nav-actions"><button class="btn" id="prev" type="button" ${current === 0 ? 'disabled' : ''}>上一步</button></div></div>
           </section>
           <aside class="panel side" aria-label="测评说明"><h2 class="side-title">五个观察维度</h2><div class="trait-list">${traits.map(item => `<div class="trait-row"><span class="dot" style="--trait-color:${item.color}"></span><span class="trait-name">${item.name}</span><span class="trait-state">${doneTraits.has(item.key) ? '已遇见' : '待探索'}</span></div>`).join('')}</div><div class="side-divider"></div><p class="privacy"><strong>只为自我觉察</strong><br>答案仅保存在当前页面，不会上传或储存到服务器。测评结果不用于诊断。</p></aside>
         </div>`;
       app.querySelectorAll('[data-answer]').forEach(button => button.addEventListener('click', () => {
-        answers[current] = Number(button.dataset.answer);
+        const answeredQuestion = current;
+        clearTimeout(advanceTimer);
+        answers[answeredQuestion] = Number(button.dataset.answer);
         app.querySelectorAll('[data-answer]').forEach(option => option.setAttribute('aria-pressed', String(option === button)));
-        app.querySelector('#next').disabled = false;
+        advanceTimer = setTimeout(() => {
+          if (current !== answeredQuestion) return;
+          if (current < questions.length - 1) { current++; renderQuestion(); }
+          else renderResults();
+        }, 350);
       }));
       app.querySelector('#prev').addEventListener('click', () => { if (current > 0) { current--; renderQuestion(); } });
-      app.querySelector('#next').addEventListener('click', () => {
-        if (answers[current] === null) return;
-        if (current < questions.length - 1) { current++; renderQuestion(); }
-        else renderResults();
-      });
     }
 
     function calculateScores() {
@@ -253,6 +260,21 @@
       });
       context.beginPath();
       scores.forEach((item, index) => {
+        const value = (item.average - 1) / 4;
+        const x = center.x + Math.cos(angles[index]) * radius * value;
+        const y = center.y + Math.sin(angles[index]) * radius * value;
+        index === 0 ? context.moveTo(x, y) : context.lineTo(x, y);
+      });
+      context.closePath();
+      context.fillStyle = 'rgba(226, 125, 82, .06)';
+      context.fill();
+      context.strokeStyle = '#e27d52';
+      context.lineWidth = 2;
+      context.setLineDash([5, 4]);
+      context.stroke();
+      context.setLineDash([]);
+      context.beginPath();
+      scores.forEach((item, index) => {
         const value = (item.score - 1) / 4;
         const x = center.x + Math.cos(angles[index]) * radius * value;
         const y = center.y + Math.sin(angles[index]) * radius * value;
@@ -294,7 +316,7 @@
             <div class="result-actions"><button class="btn" id="back-to-answers" type="button">返回修改</button><button class="btn btn-primary" id="restart" type="button">重新测一次</button></div>
             <p class="disclaimer">本页面为非正式自我探索工具，不是标准化心理测验，也不能替代专业评估或心理健康服务。</p>
           </section>
-          <aside class="panel chart-panel"><h3>五维分布</h3><p>仅供个人反思，不代表优劣</p><canvas id="radar" width="300" height="300" role="img" aria-label="五个人格维度的雷达图"></canvas></aside>
+          <aside class="panel chart-panel"><h3>五维分布</h3><p>你的得分与参考均值对照</p><canvas id="radar" width="300" height="300" role="img" aria-label="五维人格得分与参考均值雷达图"></canvas><div class="chart-legend" aria-label="图例"><span><i class="legend-swatch"></i>你的得分</span><span><i class="legend-swatch legend-average"></i>参考均值</span></div></aside>
         </div>`;
       drawChart(scores);
       app.querySelector('#back-to-answers').addEventListener('click', () => { current = questions.length - 1; renderQuestion(); });
